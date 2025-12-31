@@ -1,0 +1,64 @@
+{
+  "name": "System - Heartbeat (Watchdog)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -224,
+        -32
+      ],
+      "id": "105ae847-18d3-44fa-84b7-9785dc2e2a0c",
+      "name": "A cada 1 min"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hc-ping.com/f1869e61-21f2-4e79-b1d8-8a038afefff8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        0,
+        -32
+      ],
+      "id": "ff527cea-f762-48e3-b220-6532adfc5844",
+      "name": "Bater Cartão"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "A cada 1 min": {
+      "main": [
+        [
+          {
+            "node": "Bater Cartão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fc9737cb-5ba1-4b96-96fc-539bb29a6c0a",
+  "meta": {
+    "instanceId": "cda283d70cf8b94453076ed599635e2734cf051745f33cba1dacc3cf2f07ad04"
+  },
+  "id": "gQjPVxX6bNbWIagq",
+  "tags": []
+}

@@ -1,0 +1,1485 @@
+{
+  "name": "auto Healing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zabbix",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -3568,
+        2128
+      ],
+      "id": "a60e7fa8-ebf6-45de-9419-b7626005f6e5",
+      "name": "Webhook",
+      "webhookId": "138e2733-ac81-46d0-bbb5-74cab92a191a"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "05fa531f-939b-4a46-b535-b4a0e7b3deed",
+              "leftValue": "={{$json[\"severity_level\"]}}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2864,
+        2240
+      ],
+      "id": "ad2123f8-3255-407c-b5cf-2379297cb3db",
+      "name": "Severidade"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of $input.all()) {\n    const problemRaw = item.json.body.problem_name || '';\n    const problem = problemRaw.toLowerCase();\n    let detectedService = null;\n    let foundStatus = false;\n\n    const serviceMap = {\n        \"nginx\": \"nginx\",\n        \"zabbix\": \"zabbix-agent\",\n        \"mysql\": \"mysql\",\n        \"agent\": \"zabbix-agent\", // Captura \"Zabbix agent unreachable\"\n    };\n\n    for (const key in serviceMap) {\n        if (problem.includes(key)) {\n            detectedService = serviceMap[key];\n            foundStatus = true;\n            break;\n        }\n    }\n\n    item.json.service_to_restart = detectedService;\n    item.json.found = foundStatus; \n}\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2240,
+        1904
+      ],
+      "id": "603922d8-87d8-40c4-bdf6-0dcf88116aa5",
+      "name": "Dicionario de Serviços"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "apt-get clean && journalctl --vacuum-time=1d"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1264,
+        1024
+      ],
+      "id": "a27e9fa3-5de1-4ba5-b974-7789207db449",
+      "name": "Limpar Espaço",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c9eb3127-d037-4b0c-aa04-2b5f102c3f79",
+              "leftValue": "={{ $json.found }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1984,
+        1904
+      ],
+      "id": "0f17cbbe-720a-4f06-998f-3f3cd9af8144",
+      "name": "Auto-Healing"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "=systemctl restart {{ $('Dicionario de Serviços').item.json.service_to_restart }}"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1728,
+        1344
+      ],
+      "id": "170c4dfe-f142-476f-b195-2b6140ff6a1f",
+      "name": "Reiniciar serviço",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1536,
+        1344
+      ],
+      "id": "18ab0545-299e-4105-953a-0327f2829f4e",
+      "name": "Wait",
+      "webhookId": "0fef2d69-7a68-4e8b-8ea6-d8ff4fd996cf"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "=systemctl is-active {{ $('Dicionario de Serviços').item.json.service_to_restart }}"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1360,
+        1344
+      ],
+      "id": "e29ac659-64a7-4009-80a2-8821c23753b0",
+      "name": "verificar",
+      "retryOnFail": true,
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5a424230-6934-4257-8310-fc1bc06057cc",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "active (running)",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1200,
+        1344
+      ],
+      "id": "5735ce87-46e5-487e-8af3-47b96839c8ab",
+      "name": "Subiu ?"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "shutdown -r +1 \"Reiniciando via Auto-Healing n8n\""
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        1808
+      ],
+      "id": "edd64c52-f6f4-4c8e-a0d5-1485c2b45df9",
+      "name": "reboot",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "df / --output=pcent | tail -1 | tr -dc '0-9'"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1808,
+        1040
+      ],
+      "id": "c0e8fc63-99c6-4dd4-aabb-c3daaca4d513",
+      "name": "Checar Espaço do disco",
+      "executeOnce": true,
+      "alwaysOutputData": false,
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3f41243a-9e76-4de5-9efc-527a34bfa71e",
+              "leftValue": "={{ $json.stdout.toNumber() }}",
+              "rightValue": 90,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1504,
+        1040
+      ],
+      "id": "29482b9a-dc8d-4cb6-b1dc-ce50961d21fd",
+      "name": "Disco Cheio ?"
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1536,
+        1808
+      ],
+      "id": "7a54e17b-eef4-4671-9919-bd7291689ced",
+      "name": "Wait1",
+      "webhookId": "9d9a80ee-7ec1-4199-bfba-cca4c1816b84"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "=echo \"failed\""
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1344,
+        1808
+      ],
+      "id": "7c537e55-df9a-4185-99a6-2a1a6157c885",
+      "name": "verificar1",
+      "retryOnFail": true,
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5a424230-6934-4257-8310-fc1bc06057cc",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "active",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1184,
+        1808
+      ],
+      "id": "d9127fbe-b825-4aff-9450-8554a47558b5",
+      "name": "Status Final"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "=echo \"=== STATUS DO SERVIÇO ===\";\nsystemctl status {{ $('Dicionario de Serviços').item.json.service_to_restart }} --no-pager;\necho \"\";\necho \"=== LOGS RECENTES (Journalctl) ===\";\njournalctl -u {{ $('Dicionario de Serviços').item.json.service_to_restart }} -n 20 --no-pager;\necho \"\";\necho \"=== TOP 5 MEMÓRIA ===\";\nps -eo pid,user,%mem,%cpu,comm --sort=-%mem | head -n 6"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -944,
+        1680
+      ],
+      "id": "64907fc1-6f79-45dc-9291-383e344ea8a2",
+      "name": "Ler Logs de Erro",
+      "retryOnFail": true,
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "# 1. Coleta métricas REAIS do sistema (Sem mentiras pro Juiz) USERS=$(who | wc -l) LOAD=$(awk '{print $1}' /proc/loadavg) UPTIME=$(awk '{print $1}' /proc/uptime | cut -d. -f1)  # 2. Retorna JSON para a decisão de segurança echo \"{\\\"users\\\": $USERS, \\\"load\\\": $LOAD, \\\"uptime_sec\\\": $UPTIME, \\\"packet_loss\\\": 0}\""
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1376,
+        1568
+      ],
+      "id": "0fbd0cbe-79ef-47aa-b280-f1aa678336de",
+      "name": "Validar Saúde",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "16262658-7a73-446a-80ce-51b03ff0fe9f",
+              "leftValue": "={{ JSON.parse($json.stdout).users }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "f8e651d1-662e-4192-aa7d-998c15f34ea6",
+              "leftValue": "={{ JSON.parse($json.stdout).uptime_sec }}",
+              "rightValue": 900,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "0a387d20-4b22-4ef7-9b0c-1f192ea97f78",
+              "leftValue": "={{ JSON.parse($json.stdout).load }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            },
+            {
+              "id": "8796f0b8-4c2e-4476-aa36-b0d30dbd45fe",
+              "leftValue": "={{ JSON.parse($json.stdout).packet_loss }}",
+              "rightValue": 20,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1184,
+        1568
+      ],
+      "id": "f6401f41-4d64-4320-97e4-00c812cf4f7e",
+      "name": "Juiz"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node - robust parsing do body (lida com string, JSON já parseado, etc.)\nfor (let i = 0; i < items.length; i++) {\n  const current = items[i].json;\n\n  // tenta localizar o payload em possíveis campos\n  let body = current.body ?? current.rawBody ?? null;\n\n  // objeto onde vamos colocar chaves extraídas\n  const obj = {};\n\n  if (body === null) {\n    // nada no body: talvez os campos já estejam no topo (ex: severity_n existe)\n    // copiamos nada aqui, abaixo iremos mesclar current com obj (vazio)\n  } else if (typeof body === 'string') {\n    // se for string, tentamos primeiro parse JSON (caso venha JSON stringificado)\n    try {\n      const parsed = JSON.parse(body);\n      if (parsed && typeof parsed === 'object') {\n        Object.assign(obj, parsed);\n      } else {\n        // se não for objeto, seguimos para tentativa de parse linha-a-linha\n        body.split(/\\r?\\n/).forEach(line => {\n          const m = line.match(/^\\s*([^:]+)\\s*:\\s*(.+)$/);\n          if (m) obj[m[1].trim()] = m[2].trim();\n        });\n      }\n    } catch (e) {\n      // não era JSON — parse linha-a-linha (formato chave : valor)\n      body.split(/\\r?\\n/).forEach(line => {\n        const m = line.match(/^\\s*([^:]+)\\s*:\\s*(.+)$/);\n        if (m) obj[m[1].trim()] = m[2].trim();\n      });\n    }\n  } else if (typeof body === 'object') {\n    // já é objeto (webhook parseou JSON automaticamente)\n    Object.assign(obj, body);\n  } else {\n    // caso raro: converte para string e tenta parse por linhas\n    const asString = String(body);\n    asString.split(/\\r?\\n/).forEach(line => {\n      const m = line.match(/^\\s*([^:]+)\\s*:\\s*(.+)$/);\n      if (m) obj[m[1].trim()] = m[2].trim();\n    });\n  }\n\n  // converte campos numéricos que interessam\n  if (obj.severity_n !== undefined) obj.severity_n = Number(obj.severity_n);\n  if (obj.status !== undefined) obj.status = Number(obj.status);\n\n  // mescla no json original (mantendo headers/params etc)\n  items[i].json = { ...items[i].json, ...obj };\n}\n\n// retornar o array items inteiro\nreturn items;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3024,
+        2240
+      ],
+      "id": "26a7ec23-43a2-4070-996e-ad57823acb98",
+      "name": "ssh core"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === FUNÇÕES DE SEGURANÇA (Para não quebrar se o nó não rodar) ===\nfunction getSafeJson(nodeName) {\n    try { return $(nodeName).first().json || {}; } catch (e) { return {}; }\n}\nfunction getSafeBody(nodeName) {\n    try { return $(nodeName).first().json.body || {}; } catch (e) { return {}; }\n}\n// Função para verificar se rodou (substitui o .isExecuted que falha às vezes)\nfunction nodeRan(nodeName) {\n    try { return !!$(nodeName).first(); } catch (e) { return false; }\n}\n\n// === CONFIGURAÇÃO E RESGATE DE DADOS ===\nconst sshData = getSafeJson('ssh core');\nconst webhookBody = getSafeBody('Webhook');\n// Fallback: Pega dados do input atual se os outros falharem\nconst currentData = $input.first().json || {}; \n\nconst sourceData = { ...webhookBody, ...sshData, ...currentData };\n\n// 1. Captura do Nome\nconst zabbixAlertName = sourceData.problem_name || sourceData.event_name || sourceData.problem || sourceData.name || \"Alerta Geral\";\n\n// 2. Captura do Status\nconst triggerStatus = sourceData.trigger_status ?? sourceData.status ?? 1;\n\n// 3. Verifica se é Recuperação\nconst isRecovery = String(triggerStatus) === '0' || String(triggerStatus).toLowerCase().includes('ok') || String(triggerStatus).toLowerCase().includes('resolved');\n\n// 4. Captura da Severidade\nconst rawSeverity = sourceData.severity_level || sourceData.severity || \"Warning\";\nlet baseColor = 'Warning';\n\nif (String(rawSeverity).match(/4|5|high|disaster|critical|average/i) || Number(rawSeverity) >= 3) {\n    baseColor = 'Attention'; \n} else if (String(rawSeverity).match(/0|ok|info/i)) {\n    baseColor = 'Good'; \n}\n\nif (isRecovery) { baseColor = 'Good'; }\n\n// === LÓGICA DE VISUAL E CONTEXTO ===\nconst hostName = sourceData.hostname || sourceData.host || \"UNKNOWN-HOST\";\nconst origin = \"Zabbix Monitor\";\nconst timestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });\n\nlet status = {\n    title: isRecovery ? `✅ RESOLVIDO: ${zabbixAlertName}` : `⚠️ ${zabbixAlertName.toUpperCase()}`,\n    message: isRecovery \n        ? `O problema **${zabbixAlertName}** foi normalizado no host **${hostName}**.`\n        : `O Zabbix reportou: **${zabbixAlertName}** no host **${hostName}**.`,\n    technical_details: `Status: ${isRecovery ? 'RESOLVIDO (OK)' : 'PROBLEMA'}. Severidade Original: ${rawSeverity}.`,\n    color: baseColor,\n    emoji: isRecovery ? \"✅\" : \"🔔\"\n};\n\n// --- LÓGICA AUTO-HEALING ---\nconst runLinux = nodeRan('Ler Logs de Erro') || nodeRan('Auto-Healing');\nconst runWindows = nodeRan('Checagem de Disco');\n\nif (!isRecovery) {\n    if (runWindows) {\n         const wasRebooted = nodeRan('Reboot');\n         if (wasRebooted) { status.title = \"🔄 WINDOWS REINICIADO\"; status.color = \"Good\"; }\n    } else if (runLinux) {\n        const linuxInput = currentData.stdout || \"\"; \n        // Se tiver output, mostramos ele. Se não, mantemos o padrão.\n        if (linuxInput) {\n             status.technical_details = `Output: ${linuxInput.substring(0, 500)}...`;\n        }\n        if (linuxInput.includes(\"active: active\")) { status.color = \"Good\"; status.title = \"AUTO-HEALING SUCESSO\"; }\n    }\n}\n\n// === RETORNO FINAL ===\nreturn {\n    json: {\n        alert: {\n            title: status.title,\n            message: status.message,\n            technical_details: status.technical_details,\n            color: status.color,\n            host: hostName,\n            origin: origin,\n            timestamp: timestamp\n        }\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        2032
+      ],
+      "id": "59fbdfe0-6879-4759-b6f4-cd9451952211",
+      "name": "mensagens"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://url_chanell_teams",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"type\": \"message\",\n  \"summary\": \"{{ $json.alert.title }} \\n🖥️ Host: {{ $json.alert.host }}\",\n  \"attachments\": [\n    {\n      \"contentType\": \"application/vnd.microsoft.card.adaptive\",\n      \"content\": {\n        \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n        \"type\": \"AdaptiveCard\",\n        \"version\": \"1.4\",\n        \"msteams\": {\n          \"width\": \"Full\"\n        },\n        \"body\": [\n          {\n            \"type\": \"Container\",\n            \"style\": \"emphasis\",\n            \"items\": [\n              {\n                \"type\": \"TextBlock\",\n                \"text\": \"{{ $json.alert.title || '🚨 ALERTA' }}\",\n                \"weight\": \"Bolder\",\n                \"size\": \"Large\",\n                \"color\": \"{{ $json.alert.color || 'Warning' }}\",\n                \"wrap\": true\n              },\n              {\n                \"type\": \"TextBlock\",\n                \"text\": \"{{ $json.alert.message || 'Sem descrição.' }}\",\n                \"isSubtle\": true,\n                \"wrap\": true,\n                \"size\": \"Medium\"\n              }\n            ]\n          },\n          {\n            \"type\": \"Container\",\n            \"items\": [\n              {\n                \"type\": \"FactSet\",\n                \"facts\": [\n                  {\n                    \"title\": \"🖥️ Host:\",\n                    \"value\": \"{{ $json.alert.host || 'N/A' }}\"\n                  },\n                  {\n                    \"title\": \"🕒 Data:\",\n                    \"value\": \"{{ $json.alert.timestamp || 'Agora' }}\"\n                  },\n                  {\n                    \"title\": \"🛠️ Origem:\",\n                    \"value\": \"Zabbix Monitor\"\n                  }\n                ]\n              }\n            ]\n          },\n          {\n            \"type\": \"Container\",\n            \"style\": \"accent\",\n            \"items\": [\n              {\n                \"type\": \"TextBlock\",\n                \"text\": \"Detalhes Técnicos / Logs:\",\n                \"weight\": \"Bolder\",\n                \"size\": \"Default\",\n                \"color\": \"Light\"\n              },\n              {\n                \"type\": \"TextBlock\",\n                \"text\": \"{{ $json.alert.technical_details || 'Nenhum log capturado.' }}\",\n                \"fontType\": \"Monospace\",\n                \"size\": \"Small\",\n                \"wrap\": true,\n                \"isSubtle\": true\n              }\n            ]\n          }\n        ],\n        \"actions\": [\n          {\n            \"type\": \"Action.OpenUrl\",\n            \"title\": \"🔗 Abrir no Zabbix\",\n            \"url\": \"http://10.42.26.17/zabbix/zabbix.php?action=problem.view\"\n  \t   }\n        ]\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        144,
+        2032
+      ],
+      "id": "36a02401-eebe-4b7b-9bda-acc657a28393",
+      "name": "Teams"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.os_type }}",
+                    "rightValue": "linux",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e1bd282f-50e0-46c7-8afc-3e204286c194"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Linux"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "19ba7d98-ee13-422e-82c7-dcd64120120d",
+                    "leftValue": "={{ $json.os_type }}",
+                    "rightValue": "windows",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Windows"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -2416,
+        2144
+      ],
+      "id": "e020b596-437e-431a-8c04-e119dc83cfdc",
+      "name": "Verificação de SO"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "41cbe9ec-c42d-4db2-8c91-1e4efcac76f8",
+              "name": "private_key",
+              "value": "\"INSIRA_SUA_CHAVE_AQUI\"",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2624,
+        2224
+      ],
+      "id": "f9bd2d94-f54b-404b-9760-6ed3762720a6",
+      "name": "Chaves de Acesso"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of $input.all()) {\n  const problemRaw = item.json.body.problem_name || '';\n  const problem = problemRaw.toLowerCase();\n  \n  let detectedService = null;\n  let foundStatus = false;\n\n  const serviceMap = {\n    // === SQL SERVER 2019 (NOVO) ===\n    // ATENÇÃO: 'MSSQLSERVER' é para instância padrão. \n    // Se for nomeada, use 'MSSQL$NOME'\n    \"sql server\": \"MSSQLSERVER\",\n    \"mssql\": \"MSSQLSERVER\",\n    \"sql 2019\": \"MSSQLSERVER\",\n    \"banco de dados\": \"MSSQLSERVER\", // Cuidado se tiver outros DBs (Oracle/Pg)\n\n    // === BENTLEY PROJECTWISE ===\n    \"projectwise\": \"ProjectWise Integration Server\",\n    \"project wise\": \"ProjectWise Integration Server\",\n    \"bentley\": \"ProjectWise Integration Server\",\n    \"pw integration\": \"ProjectWise Integration Server\",\n\n    // === OUTROS SERVIÇOS ===\n    // Zabbix Agent 2\n    \"zabbix agent 2\": \"Zabbix Agent 2\",\n    \"agent 2\": \"Zabbix Agent 2\",\n    \n    // TeamViewer\n    \"teamviewer\": \"TeamViewer\",\n    \"team viewer\": \"TeamViewer\",\n    \"acesso remoto\": \"TeamViewer\",\n\n    // Print Server\n    \"print\": \"Spooler\",\n    \"spooler\": \"Spooler\",\n    \"impressao\": \"Spooler\",\n\n    // Veeam Backup\n    \"veeam\": \"VeeamBackupSvc\",\n    \"backup\": \"VeeamBackupSvc\",\n    \n    // Hyper-V Host\n    \"hyper-v\": \"vmms\",\n    \"vmms\": \"vmms\",\n    \"virtual machine\": \"vmms\",\n\n    // File Server (SMB)\n    \"file server\": \"LanmanServer\",\n    \"smb\": \"LanmanServer\",\n    \"compartilhamento\": \"LanmanServer\"\n  };\n\n  for (const key in serviceMap) {\n    if (problem.includes(key)) {\n      detectedService = serviceMap[key];\n      foundStatus = true;\n      break; \n    }\n  }\n\n  item.json.service_to_restart = detectedService;\n  item.json.found = foundStatus;\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2192,
+        2400
+      ],
+      "id": "8f231793-807f-4e58-9eb7-853b52ddf487",
+      "name": "Dicionário de serviços"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "systemctl restart {{ $json.service_to_restart }}"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        1024
+      ],
+      "id": "096a31c5-a69e-4f9e-b868-a14f498ab9bb",
+      "name": "Reiniciar serviço1",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "z50MOfJdquIoy0q3",
+          "name": "SSH Password account- teste"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1072,
+        1024
+      ],
+      "id": "606c55d9-2243-4347-870d-6c95115e06da",
+      "name": "Wait2",
+      "webhookId": "0fef2d69-7a68-4e8b-8ea6-d8ff4fd996cf"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5a424230-6934-4257-8310-fc1bc06057cc",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "active (running)",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -688,
+        1024
+      ],
+      "id": "3da7283a-89e6-436e-8091-6a3ed7a6202f",
+      "name": "Subiu ?1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "23edcea5-d718-41f1-ad4d-9d6a13081df2",
+              "leftValue": "={{ JSON.parse($json.stdout).PercentFree }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1600,
+        2224
+      ],
+      "id": "0e86e8bd-5e17-41a7-944b-9f2f2099325e",
+      "name": "Disco Cheio?"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1600,
+        2512
+      ],
+      "id": "8b4d45bc-236b-47a5-865e-570b1a43adcd",
+      "name": "Wait3",
+      "webhookId": "0fef2d69-7a68-4e8b-8ea6-d8ff4fd996cf"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "(Get-Service -Name {{ $('Dicionário...').item.json.service_to_restart }}).Status"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1328,
+        2512
+      ],
+      "id": "110fd463-7617-4bef-ab85-f93747cd21cb",
+      "name": "Verificar status",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "hmHamyEBVQZ7OBxV",
+          "name": "SSH Private Key account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2d087654-911b-41af-b04f-ef59052c762c",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "Running",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1104,
+        2368
+      ],
+      "id": "c4f996b2-01ea-4240-8e18-8514400b296f",
+      "name": "Subiu ?2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "577a3728-0dfb-46b1-9042-65f01e814c20",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "APPROVED",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -896,
+        2624
+      ],
+      "id": "284cb6b8-316a-4d9f-a2d8-ec1cbb6187d4",
+      "name": "Juiz Aprovou?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cada91e2-368a-41e1-a83d-df9990f79f8a",
+              "leftValue": "={{ $json.found }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2016,
+        2400
+      ],
+      "id": "78139d69-6b71-4056-bd03-3146ee557d9a",
+      "name": "Serviço Encontrado?1"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "# Retorna espaço livre em GB e porcentagem da unidade C: $disk = Get-CimInstance -ClassName Win32_LogicalDisk -Filter \"DeviceID='C:'\" $sizeGB = [math]::Round($disk.Size / 1GB, 2) $freeGB = [math]::Round($disk.FreeSpace / 1GB, 2) $percentFree = [math]::Round(($disk.FreeSpace / $disk.Size) * 100, 2)  # Output JSON para o n8n @{     TotalGB = $sizeGB     FreeGB = $freeGB     PercentFree = $percentFree     LowSpace = if ($percentFree -lt 10) { $true } else { $false } } | ConvertTo-Json -Compress"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1792,
+        2224
+      ],
+      "id": "2ed1c590-3c5b-4c6e-8337-3261c727415e",
+      "name": "Checagem de Disco",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "hmHamyEBVQZ7OBxV",
+          "name": "SSH Private Key account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "=$serviceName = \"{{ $('Dicionário de serviços').item.json.service_to_restart }}\"\ntry {     # Tenta parar graciosamente antes de matar     Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue     Start-Sleep -Seconds 5          # Inicia e espera validação     Start-Service -Name $serviceName -ErrorAction Stop          # Validação imediata     $status = (Get-Service -Name $serviceName).Status     if ($status -eq 'Running') {         Write-Output \"SUCCESS: Service $serviceName restarted.\"     } else {         Write-Error \"FAILURE: Service $serviceName did not start.\"     } } catch {     Write-Error \"CRITICAL ERROR: $_\" }"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1776,
+        2512
+      ],
+      "id": "64eebb2d-951f-4be1-8633-efcc24a9c866",
+      "name": "Reiniciar Serviço1",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "hmHamyEBVQZ7OBxV",
+          "name": "SSH Private Key account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "$os = Get-CimInstance Win32_OperatingSystem; $uptimeDays = ((Get-Date) - $os.LastBootUpTime).Days; $isHyperV = (Get-Service -Name vmms -ErrorAction SilentlyContinue).Status -eq 'Running'; $isVeeam = (Get-Service -Name VeeamBackupSvc -ErrorAction SilentlyContinue).Status -eq 'Running'; if ($isHyperV) { Write-Output \"DENIED: Servidor é Hyper-V Host\" } elseif ($isVeeam -and ((Get-Process Veeam*).Count -gt 5)) { Write-Output \"DENIED: Servidor Veeam com jobs ativos\" } elseif ($uptimeDays -lt 1) { Write-Output \"DENIED: Servidor reiniciado há menos de 1 dia\" } else { Write-Output \"APPROVED\" }"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1104,
+        2624
+      ],
+      "id": "8b55272a-06ca-4b55-aba8-3351b8b549b5",
+      "name": "Juiz win",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "hmHamyEBVQZ7OBxV",
+          "name": "SSH Private Key account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "Restart-Computer -Force -Reason \"Auto-Healing n8n: Service Failure\""
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        2608
+      ],
+      "id": "f3024a87-a49f-46ba-9bc2-4bdfebf96c8c",
+      "name": "Reboot",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "hmHamyEBVQZ7OBxV",
+          "name": "SSH Private Key account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "Write-Output \"Iniciando limpeza segura de disco...\"\n\n# 1. Limpar Pasta Temp do Windows (Somente arquivos > 24h)\nGet-ChildItem -Path \"C:\\Windows\\Temp\" -Recurse -Force -ErrorAction SilentlyContinue | \nWhere-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-1) } | \nRemove-Item -Recurse -Force -ErrorAction SilentlyContinue\n\n# 2. Limpar Pasta Temp de Usuários (Cuidado redobrado)\nGet-ChildItem -Path \"C:\\Users\\*\\AppData\\Local\\Temp\" -Recurse -Force -ErrorAction SilentlyContinue | \nWhere-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-2) } | \nRemove-Item -Recurse -Force -ErrorAction SilentlyContinue\n\n# 3. Esvaziar Lixeira (Recycle Bin)\nClear-RecycleBin -Force -ErrorAction SilentlyContinue\n\n# 4. Limpar Spooler de Impressão Travado (Arquivos .SHD e .SPL antigos)\n# Só remove se tiver mais de 24h (evita deletar impressão ativa)\nGet-ChildItem -Path \"C:\\Windows\\System32\\spool\\PRINTERS\\*.*\" -ErrorAction SilentlyContinue |\nWhere-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-1) } |\nRemove-Item -Force -ErrorAction SilentlyContinue\n\n# Retorna novo espaço livre para log\n$free = [math]::Round((Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID='C:'\").FreeSpace / 1GB, 2)\nWrite-Output \"Limpeza concluída. Espaço Livre Atual: $free GB\""
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1328,
+        2208
+      ],
+      "id": "74bc354d-bbe6-459b-b55c-3596a947adff",
+      "name": "Limpar Espaço1",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "hmHamyEBVQZ7OBxV",
+          "name": "SSH Private Key account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.hostname }}",
+        "rules": {
+          "rules": [
+            {
+              "operation": "contains",
+              "value2": "Link Escritorio"
+            }
+          ]
+        },
+        "fallbackOutput": 1
+      },
+      "id": "2a40486b-a100-4c51-811b-a8983acf7117",
+      "name": "Roteador (Switch)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -3312,
+        2096
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Roteador (Switch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Severidade": {
+      "main": [
+        [
+          {
+            "node": "Chaves de Acesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dicionario de Serviços": {
+      "main": [
+        [
+          {
+            "node": "Auto-Healing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Espaço": {
+      "main": [
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Healing": {
+      "main": [
+        [
+          {
+            "node": "Checar Espaço do disco",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reiniciar serviço": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "verificar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verificar": {
+      "main": [
+        [
+          {
+            "node": "Subiu ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subiu ?": {
+      "main": [
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validar Saúde",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "reboot": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Espaço do disco": {
+      "main": [
+        [
+          {
+            "node": "Disco Cheio ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disco Cheio ?": {
+      "main": [
+        [
+          {
+            "node": "Limpar Espaço",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reiniciar serviço",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "verificar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verificar1": {
+      "main": [
+        [
+          {
+            "node": "Status Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status Final": {
+      "main": [
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler Logs de Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Logs de Erro": {
+      "main": [
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Saúde": {
+      "main": [
+        [
+          {
+            "node": "Juiz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juiz": {
+      "main": [
+        [
+          {
+            "node": "reboot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler Logs de Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ssh core": {
+      "main": [
+        [
+          {
+            "node": "Severidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mensagens": {
+      "main": [
+        [
+          {
+            "node": "Teams",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificação de SO": {
+      "main": [
+        [
+          {
+            "node": "Dicionario de Serviços",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dicionário de serviços",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chaves de Acesso": {
+      "main": [
+        [
+          {
+            "node": "Verificação de SO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dicionário de serviços": {
+      "main": [
+        [
+          {
+            "node": "Serviço Encontrado?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reiniciar serviço1": {
+      "main": [
+        [
+          {
+            "node": "Subiu ?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "Reiniciar serviço1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subiu ?1": {
+      "main": [
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validar Saúde",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disco Cheio?": {
+      "main": [
+        [
+          {
+            "node": "Limpar Espaço1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reiniciar Serviço1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait3": {
+      "main": [
+        [
+          {
+            "node": "Verificar status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar status": {
+      "main": [
+        [
+          {
+            "node": "Subiu ?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subiu ?2": {
+      "main": [
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Juiz win",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juiz Aprovou?": {
+      "main": [
+        [
+          {
+            "node": "Reboot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Serviço Encontrado?1": {
+      "main": [
+        [
+          {
+            "node": "Checagem de Disco",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checagem de Disco": {
+      "main": [
+        [
+          {
+            "node": "Disco Cheio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reiniciar Serviço1": {
+      "main": [
+        [
+          {
+            "node": "Wait3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juiz win": {
+      "main": [
+        [
+          {
+            "node": "Juiz Aprovou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reboot": {
+      "main": [
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Espaço1": {
+      "main": [
+        [
+          {
+            "node": "Reiniciar Serviço1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador (Switch)": {
+      "main": [
+        [
+          {
+            "node": "mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ssh core",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "174f9930-d780-4990-aedb-dbc3d6d9a95f",
+  "meta": {
+    "instanceId": "cda283d70cf8b94453076ed599635e2734cf051745f33cba1dacc3cf2f07ad04"
+  },
+  "id": "FcGdKelSD7uYVBVr",
+  "tags": []
+}

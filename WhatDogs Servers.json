@@ -1,0 +1,200 @@
+{
+  "name": "WhatDogs Servers",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2208,
+        992
+      ],
+      "id": "5238b139-5ef4-406c-b06c-dce094376f45",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "duplicateItem": true,
+        "jsonOutput": "{\n  \"meus_hosts\": [\n    \"ID_HOST_ZAbbix\",\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1968,
+        992
+      ],
+      "id": "380295e8-dada-4c96-ae64-c42779c9f035",
+      "name": "Config_IDs"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://SEU_IP/zabbix/api_jsonrpc.php",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 5057adb1b8e6bf911778a274732412163a8b10d098211089c579ff78c461c723"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"jsonrpc\": \"2.0\",\n    \"method\": \"item.get\",\n    \"params\": {\n        \"output\": [\"lastvalue\", \"key_\", \"hostid\"],\n        \"selectHosts\": [\"name\"],\n        \"hostids\": $('Config_IDs').first().json.meus_hosts, // Pega do nó anterior\n        \"filter\": {\n            \"key_\": [\n                \"system.cpu.util\",      // CPU\n                \"vm.memory.util\",       // RAM (Linux/Windows v6)\n                \"vm.memory.utilization\" // RAM (Windows v5)\n            ]\n        }\n    },\n    \"id\": 1\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1744,
+        992
+      ],
+      "id": "770f7142-d021-4147-a323-8c0f28c5b4e2",
+      "name": "Get_status"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ajuste aqui o limite real quando for pra produção (Ex: 90 ou 95)\nconst CRITICAL_THRESHOLD = 90; \n\nlet items = [];\n// Consolida os dados que vieram do Zabbix\n$input.all().forEach(nodeInput => {\n  if (nodeInput.json.result) items = items.concat(nodeInput.json.result);\n});\n\nlet alerts = [];\n\n// Analisa cada item\nitems.forEach(item => {\n    const val = parseFloat(item.lastvalue);\n    const host = (item.hosts && item.hosts[0]) ? item.hosts[0].name : \"Host Desconhecido\";\n    const key = item.key_;\n    \n    // Se passar do limite, adiciona na lista\n    if (val >= CRITICAL_THRESHOLD) {\n        let type = \"Problema\";\n        let emoji = \"⚠️\";\n        \n        if (key.includes(\"cpu\")) { type = \"CPU Fritando\"; emoji = \"🔥\"; }\n        if (key.includes(\"memory\")) { type = \"Memória Cheia\"; emoji = \"🧠\"; }\n\n        alerts.push({\n            title: `${emoji} ${host}`,\n            value: `${type} (**${val.toFixed(1)}%**)`\n        });\n    }\n});\n\n// LÓGICA DE RETORNO ÚNICO\n// Se tiver alertas, retorna 1 objeto contendo a lista\nif (alerts.length > 0) {\n    return [{\n        json: {\n            hasCrisis: true,\n            totalAlerts: alerts.length,\n            factsList: alerts // Passamos a lista pronta pro Teams\n        }\n    }];\n} else {\n    // Se não tiver nada, retorna array vazio (o IF seguinte vai barrar)\n    return [];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        992
+      ],
+      "id": "7ca32ec9-2f07-4842-906a-e689bb9b4244",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "92e4d1be-d651-4ff5-bfd2-ac66adafb6d7",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1328,
+        992
+      ],
+      "id": "188dc8af-c368-47f4-b1d2-170a4e905dd0",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://url_chanell_teams",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"type\": \"message\",\n    \"attachments\": [\n      {\n        \"contentType\": \"application/vnd.microsoft.card.adaptive\",\n        \"content\": {\n          \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n          \"type\": \"AdaptiveCard\",\n          \"version\": \"1.4\",\n          \"msteams\": { \"width\": \"Full\" },\n          \"body\": [\n            {\n              \"type\": \"Container\",\n              \"items\": [\n                {\n                  \"type\": \"ColumnSet\",\n                  \"columns\": [\n                    {\n                      \"type\": \"Column\",\n                      \"width\": \"auto\",\n                      \"items\": [\n                        { \"type\": \"TextBlock\", \"text\": \"🚨\", \"size\": \"Large\" }\n                      ]\n                    },\n                    {\n                      \"type\": \"Column\",\n                      \"width\": \"stretch\",\n                      \"items\": [\n                        {\n                          \"type\": \"TextBlock\",\n                          \"text\": \"ALERTA DE CRISE\",\n                          \"weight\": \"Bolder\",\n                          \"size\": \"Large\",\n                          \"color\": \"Attention\"\n                        },\n                        {\n                          \"type\": \"TextBlock\",\n                          \"text\": \"Os servidores abaixo ultrapassaram o limite de segurança.\",\n                          \"isSubtle\": true,\n                          \"wrap\": true,\n                          \"spacing\": \"None\"\n                        }\n                      ]\n                    }\n                  ]\n                }\n              ]\n            },\n            {\n              \"type\": \"Container\",\n              \"items\": [\n                {\n                  \"type\": \"FactSet\",\n                  \"facts\": [\n                    { \"title\": \"🕒 Data:\", \"value\": $now.setZone('America/Sao_Paulo').toFormat('dd/MM/yyyy HH:mm') },\n                    { \"title\": \"🔥 Hosts Afetados:\", \"value\": $json.totalAlerts + \" servidores\" }\n                  ]\n                }\n              ]\n            },\n            {\n              \"type\": \"Container\",\n              \"style\": \"emphasis\", \n              \"items\": [\n                {\n                  \"type\": \"TextBlock\",\n                  \"text\": \"Detalhamento dos Recursos:\",\n                  \"weight\": \"Bolder\",\n                  \"size\": \"Small\",\n                  \"color\": \"Accent\"\n                },\n                {\n                  \"type\": \"FactSet\",\n                  \"facts\": $json.factsList\n                }\n              ]\n            }\n          ]\n        }\n      }\n    ]\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1072,
+        912
+      ],
+      "id": "d7a9193d-c13c-4c40-9487-a13da4871a7f",
+      "name": "Teams"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config_IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config_IDs": {
+      "main": [
+        [
+          {
+            "node": "Get_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_status": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Teams",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9c95b4b9-d277-4126-86d5-b7687e643cb8",
+  "meta": {
+    "instanceId": "cda283d70cf8b94453076ed599635e2734cf051745f33cba1dacc3cf2f07ad04"
+  },
+  "id": "FcGdKelSD7uYVBVr",
+  "tags": []
+}

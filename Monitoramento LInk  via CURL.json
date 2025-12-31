@@ -1,0 +1,124 @@
+{
+  "name": "Monitoramento LInk  via CURL",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1664,
+        976
+      ],
+      "id": "c7105ad7-c243-472b-8f16-450ed2a58a01",
+      "name": "A cada 4h"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "curl -o /dev/null -s -w '{\"speed_download\": %{speed_download}, \"time_total\": %{time_total}}' https://speed.cloudflare.com/__down?bytes=50000000"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -1440,
+        976
+      ],
+      "id": "45d94b50-22b7-4cf0-ae7e-727104e2ba1d",
+      "name": "Teste de Download",
+      "notesInFlow": true,
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "Vf0dm8BV8atykX4i",
+          "name": "n8n"
+        }
+      },
+      "notes": "Baixa 50MB da Cloudflare via HTTPS (Porta 443)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === CONFIGURAÇÃO ===\nconst EXPECTED_DOWNLOAD = 300; // Sua meta em Mbps\nconst MIN_ACCEPTABLE = 0.5;    // Alerta se cair de 50%\n\n// === PARSE DOS DADOS (Vindo do cURL) ===\n// Garante que não quebra se o input vier vazio\nconst rawOutput = $input.first().json.stdout || '{}';\nlet data = {};\ntry { data = JSON.parse(rawOutput); } catch(e) { data = { speed_download: 0, time_total: 0 }; }\n\n// Conversão de Bytes para Megabits\nconst downloadMbps = (data.speed_download * 8 / 1000000).toFixed(2);\nconst duration = data.time_total.toFixed(2);\n\n// === LÓGICA DE STATUS (Estilo Auto-Healing) ===\nlet status = {\n    title: \"✅ CONECTIVIDADE OK\",\n    message: `Link operando estável com **${downloadMbps} Mbps**.`,\n    color: \"Good\",\n    technical_details: `Status: ONLINE. Latência de teste: ${duration}s. Método: HTTPS/443 (Bypass).`\n};\n\n// Regra de Lentidão\nif (downloadMbps < (EXPECTED_DOWNLOAD * MIN_ACCEPTABLE)) {\n    status.title = \"⚠️ LENTIDÃO DETECTADA\";\n    status.message = `Velocidade abaixo do esperado! Atual: **${downloadMbps} Mbps** (Meta: ${EXPECTED_DOWNLOAD} Mbps).`;\n    status.color = \"Attention\";\n    status.technical_details = `ALERTA: Throughput baixo (${downloadMbps} Mbps). Verifique gargalos na rede.`;\n}\n\n// Regra de Falha Total (Se download for 0)\nif (downloadMbps == 0) {\n    status.title = \"🔥 FALHA DE CONEXÃO\";\n    status.message = \"Não foi possível conectar à internet.\";\n    status.color = \"Attention\";\n    status.technical_details = \"CRÍTICO: Download 0 bytes. Verifique cabos e modem.\";\n}\n\n// === RETORNO NO PADRÃO DO TEAMS.TXT ===\nreturn {\n    json: {\n        alert: {\n            title: status.title,\n            message: status.message,\n            technical_details: status.technical_details,\n            color: status.color,\n            host: \"n8n-server\",\n            origin: \"Speedtest Monitor\",\n            timestamp: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })\n        }\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        976
+      ],
+      "id": "17502b94-7953-44cf-9926-da0047ca9b1f",
+      "name": "Calcular Mbps"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://url_chanell_teams",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"type\": \"message\",\n  \"attachments\": [\n    {\n      \"contentType\": \"application/vnd.microsoft.card.adaptive\",\n      \"content\": {\n        \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n        \"type\": \"AdaptiveCard\",\n        \"version\": \"1.4\",\n        \"body\": [\n          {\n            \"type\": \"Container\",\n            \"style\": \"emphasis\",\n            \"items\": [\n              {\n                \"type\": \"TextBlock\",\n                \"text\": \"📶 Teste de Conectividade\",\n                \"weight\": \"Bolder\",\n                \"size\": \"Medium\"\n              },\n              {\n                \"type\": \"TextBlock\",\n                \"text\": \"{{ $json.status }}\",\n                \"color\": \"{{ $json.color }}\",\n                \"size\": \"Large\",\n                \"weight\": \"Bolder\"\n              }\n            ]\n          },\n          {\n            \"type\": \"FactSet\",\n            \"facts\": [\n              { \"title\": \"📥 Download Real:\", \"value\": \"{{ $json.download }} Mbps\" },\n              { \"title\": \"⏱️ Duração:\", \"value\": \"{{ $json.duration }}\" },\n              { \"title\": \"🛡️ Método:\", \"value\": \"HTTPS/443 (Firewall Bypass)\" }\n            ]\n          }\n        ]\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -992,
+        976
+      ],
+      "id": "52b66ecd-5ff7-4cfa-8c45-503d5a82b280",
+      "name": "Teams"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "A cada 4h": {
+      "main": [
+        [
+          {
+            "node": "Teste de Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teste de Download": {
+      "main": [
+        [
+          {
+            "node": "Calcular Mbps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular Mbps": {
+      "main": [
+        [
+          {
+            "node": "Teams",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2896aff9-6610-4ceb-9607-b3402d73fcfd",
+  "meta": {
+    "instanceId": "cda283d70cf8b94453076ed599635e2734cf051745f33cba1dacc3cf2f07ad04"
+  },
+  "id": "FcGdKelSD7uYVBVr",
+  "tags": []
+}
