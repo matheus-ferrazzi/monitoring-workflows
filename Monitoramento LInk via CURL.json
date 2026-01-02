@@ -1,0 +1,124 @@
+{
+  "name": "Monitoramento de Link (cURL)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        -96
+      ],
+      "id": "544b4b82-4249-435a-8296-15c45d9d1572",
+      "name": "A cada 4h"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "=# Dispara 4 conexões contra o seu servidor interno\n(curl -s -w \"%{speed_download}\\n\" -o /dev/null http://10.42.1.239:3000/download?size=100000000 & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://10.42.1.239:3000/download?size=100000000 & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://10.42.1.239:3000/download?size=100000000 & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://10.42.1.239:3000/download?size=100000000 & wait)"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        464,
+        -96
+      ],
+      "id": "0fcb721d-51aa-40eb-9346-e93e0fbed24f",
+      "name": "Teste de Download",
+      "notesInFlow": true,
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "Vf0dm8BV8atykX4i",
+          "name": "n8n"
+        }
+      },
+      "notes": "Baixa 50MB da Cloudflare via HTTPS (Porta 443)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === CONFIGURAÇÃO 1 GBPS ===\nconst EXPECTED_DOWNLOAD = 1000; // Sua banda total contratada\nconst SLA_WARNING = 0.7;        // Alerta se cair de 70% (700 Mbps)\n\n// === PROCESSAMENTO DAS THREADS ===\n// O SSH retorna 4 linhas com a velocidade em Bytes/s.\n// Usamos regex para garantir que vamos pegar linha por linha.\nconst rawOutput = $input.first().json.stdout || '';\nconst threads = rawOutput.trim().split(/\\r?\\n/);\n\nlet totalBytesPerSec = 0;\nthreads.forEach(val => {\n    const num = parseFloat(val);\n    if (!isNaN(num)) totalBytesPerSec += num;\n});\n\n// Conversão final para Mbps (Bytes * 8 / 1.000.000)\nconst downloadMbps = (totalBytesPerSec * 8 / 1000000).toFixed(2);\n\n// === LÓGICA DE STATUS E CORES ===\nlet status = {\n    title: \"✅ LINK 1GBPS ESTÁVEL\",\n    message: `Velocidade Atual: **${downloadMbps} Mbps**.`,\n    color: \"Good\",\n    details: `Motor: Multi-Thread HTTP. Protocolo: TCP/80 (Low CPU).`\n};\n\n// Regra de SLA (Ex: Link entregando 500 em vez de 1000)\nif (downloadMbps < (EXPECTED_DOWNLOAD * SLA_WARNING)) {\n    status.title = \"⚠️ BAIXA PERFORMANCE\";\n    status.message = `Link operando a **${downloadMbps} Mbps** (Abaixo de 70% do contratado).`;\n    status.color = \"Warning\";\n}\n\n// Regra Crítica (Lentidão severa)\nif (downloadMbps < 300) {\n    status.title = \"🚨 LENTIDÃO CRÍTICA\";\n    status.message = `Gargalo Severo: **${downloadMbps} Mbps**. Verifique a operadora.`;\n    status.color = \"Attention\";\n}\n\n// Falha Total\nif (totalBytesPerSec === 0) {\n    status.title = \"🔥 FALHA DE CONEXÃO\";\n    status.message = \"Não foi possível realizar o teste (0 bytes recebidos).\";\n    status.color = \"Attention\";\n}\n\n// === MONTAGEM DO PACOTE PARA O TEAMS ===\nreturn {\n    json: {\n        \"type\": \"message\",\n        \"summary\": `${status.title}: ${downloadMbps} Mbps`,\n        \"attachments\": [\n            {\n                \"contentType\": \"application/vnd.microsoft.card.adaptive\",\n                \"content\": {\n                    \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n                    \"type\": \"AdaptiveCard\",\n                    \"version\": \"1.4\",\n                    \"msteams\": { \"width\": \"Full\" },\n                    \"body\": [\n                        {\n                            \"type\": \"Container\",\n                            \"style\": \"emphasis\",\n                            \"items\": [\n                                { \"type\": \"TextBlock\", \"text\": status.title, \"weight\": \"Bolder\", \"size\": \"Large\", \"color\": status.color },\n                                { \"type\": \"TextBlock\", \"text\": status.message, \"isSubtle\": true, \"wrap\": true }\n                            ]\n                        },\n                        {\n                            \"type\": \"FactSet\",\n                            \"facts\": [\n                                { \"title\": \"Velocidade Real:\", \"value\": `${downloadMbps} Mbps` },\n                                { \"title\": \"SLA Contratado:\", \"value\": \"1 Gbps Dedicado\" },\n                                { \"title\": \"Threads:\", \"value\": `${threads.length} Conexões (HTTP)` }\n                            ]\n                        }\n                    ]\n                }\n            }\n        ]\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -96
+      ],
+      "id": "f459bd0b-cf53-4b81-8da7-3ef4d434911e",
+      "name": "Calcular Mbps"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://byd2.webhook.office.com/webhookb2/fb9fc191-2462-4ba0-a6f9-1592603102da@51353926-85dc-4810-b9cd-5f26253afdf3/IncomingWebhook/f697b9cfe88a43e6b8777f8180b80710/035fb6db-ad0f-4996-86dd-79efb96d1bb3/V236UY5AnsWIDcpbXov8ceimFepQ9xTcb1dpqli7XiHjc1",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        912,
+        -96
+      ],
+      "id": "012fcee1-c196-4b8d-9807-4f538493c85a",
+      "name": "Teams"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "A cada 4h": {
+      "main": [
+        [
+          {
+            "node": "Teste de Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teste de Download": {
+      "main": [
+        [
+          {
+            "node": "Calcular Mbps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular Mbps": {
+      "main": [
+        [
+          {
+            "node": "Teams",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "098449b7-11d0-4dd0-8089-8782cff154f4",
+  "meta": {
+    "instanceId": "cda283d70cf8b94453076ed599635e2734cf051745f33cba1dacc3cf2f07ad04"
+  },
+  "id": "3y93G3oWnLpvpGcz",
+  "tags": []
+}
