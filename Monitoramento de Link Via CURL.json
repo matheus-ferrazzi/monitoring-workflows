@@ -1,5 +1,5 @@
 {
-  "name": "Monitoramento de Link (cURL)",
+  "name": "Monitoramento de Link Via CURL",
   "nodes": [
     {
       "parameters": {
@@ -24,7 +24,7 @@
     {
       "parameters": {
         "authentication": "privateKey",
-        "command": "=# Dispara 4 conexões contra o seu servidor interno\n(curl -s -w \"%{speed_download}\\n\" -o /dev/null http://10.42.1.239:3000/download?size=100000000 & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://10.42.1.239:3000/download?size=100000000 & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://10.42.1.239:3000/download?size=100000000 & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://10.42.1.239:3000/download?size=100000000 & wait)"
+        "command": "=(curl -s -w \"%{speed_download}\\n\" -o /dev/null http://mirror.ufscar.br/archlinux/iso/latest/archlinux-x86_64.iso & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://mirror.ufscar.br/archlinux/iso/latest/archlinux-x86_64.iso & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://mirror.ufscar.br/archlinux/iso/latest/archlinux-x86_64.iso & curl -s -w \"%{speed_download}\\n\" -o /dev/null http://mirror.ufscar.br/archlinux/iso/latest/archlinux-x86_64.iso & wait)"
       },
       "type": "n8n-nodes-base.ssh",
       "typeVersion": 1,
@@ -115,7 +115,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "098449b7-11d0-4dd0-8089-8782cff154f4",
+  "versionId": "66fd4fd5-14ef-4218-b5a0-9ad7fc787877",
   "meta": {
     "instanceId": "cda283d70cf8b94453076ed599635e2734cf051745f33cba1dacc3cf2f07ad04"
   },
